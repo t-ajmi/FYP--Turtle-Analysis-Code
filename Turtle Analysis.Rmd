@@ -1,0 +1,254 @@
+---
+title: "Turtle analysis"
+output: html_document
+---
+```{r}
+#install.packages(c("readxl", "dplyr", "ggplot2", "plotly", "leaflet","leaflet.extras")
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(leaflet)
+library(leaflet.extras)
+# Read the data
+data <- read_excel("C:\\Users\\tawheed\\Downloads\\turtle.xlsx", sheet = "data")
+names(data)
+data$`Body condition`[is.na(data$`Body condition`)] <- "Unknown"
+data$`Decomposition Level`[is.na(data$`Decomposition Level`)] <- "Not Applicable"
+# Filter data from 2018
+data_2018 <- data %>%
+  filter(year >= 2018)
+dead_data <- data_2018 %>%
+  filter(`Mortality Status` == "Dead")
+species_year <- data %>%
+  count(year, `Type of Turtle`)
+# Distribution of Mortality Status
+mortality_data <- data_2018 %>%
+  count(`Mortality Status`)
+plot_ly(mortality_data,
+        labels = ~`Mortality Status`,
+        values = ~n,
+        type = "pie",
+        textinfo = "label+percent")
+# Distribution by Type of Turtles
+species_plot <- ggplot(data, 
+                       aes(x = `Type of Turtle`, 
+                           fill = `Type of Turtle`)) +
+  geom_bar() +
+  labs(title = "Distribution of Turtle Species",
+       x = "Type of Turtle",
+       y = "Number of Turtles",
+       fill = "Species") +
+  scale_fill_manual(values = c(
+    "Green turtle" = "green",
+    "Hawksbill Turtle" = "orange",
+    "Loggerhead turtle" = "blue",
+    "Leatherback turtle" = "brown",
+    "Olive Ridley" = "purple",
+    "Unknown" = "gray",
+    "Al rimani turtle" = "black"
+  )) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggplotly(species_plot)
+# Spatial Distribution by Wilayat
+wilayat_plot <- ggplot(data, aes(x = Wilayat)) +
+  geom_bar() +
+  labs(title = "Distribution of Turtles by Wilayat",x = "Wilayat",y = "Number of Turtle") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggplotly(wilayat_plot)
+# Distribution by Year
+data$year <- as.numeric(data$year)
+year_summary <- data %>%
+  count(year)
+year_plot <- ggplot(year_summary, aes(x = year, y = n)) +
+  geom_col() +
+  scale_x_continuous(breaks = year_summary$year) +
+  labs(title = "Number of Turtle Observations by Year",
+       x = "Year",
+       y = "Number of Turtle") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggplotly(year_plot)
+
+
+#Distribution by Quarter
+quarter_plot <- ggplot(data, 
+                       aes(x = quarter, fill = quarter)) +
+  geom_bar() +
+  labs(title = "Distribution of Turtle Observations by Quarter",x = "Quarter",y = "Number of Turtles",fill = "Quarter") +
+  theme_minimal()
+ggplotly(quarter_plot)
+# Distribution of Decomposition Level
+dead_data$`Decomposition Level` <- factor(
+  dead_data$`Decomposition Level`,
+  levels = c("Fresh", "Swollen", "Decomposed", "Skeleton"))
+decomposition_plot <- ggplot(dead_data, 
+                             aes(x = `Decomposition Level`, fill = `Decomposition Level`)) +
+  geom_bar() +
+  labs(title = "Decomposition Level of Dead Turtles (2018–2024)",
+       x = "Decomposition Level",
+       y = "Number of Dead Turtles",
+       fill = "Decomposition Level") +
+  scale_fill_manual(values = c(
+    "Fresh" = "green",
+  "Swollen" = "orange",
+  "Decomposed" = "red",
+  "Skeleton" = "black"
+  )) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggplotly(decomposition_plot)
+# Distribution of Body Condition
+body_data <- dead_data %>%
+  count(`Body condition`)
+plot_ly(body_data,
+        labels = ~`Body condition`,
+        values = ~n,
+        type = "pie",
+        textinfo = "label+percent") %>%
+  layout(title = "Body Condition of Dead Turtles (2018–2024)")
+# decomposition level by turtle species
+species_decomposition_plot <- ggplot(dead_data, aes(x = `Type of Turtle`, fill = `Decomposition Level`)) +
+  geom_bar(position = "dodge") +
+  labs(title = "Decomposition Level by Turtle Species",
+       x = "Type of Turtle",
+       y = "Number of Turtles") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggplotly(species_decomposition_plot)
+# Trend of turtle by species over time
+species_year <- species_year %>%
+  mutate(`Type of Turtle` = tolower(trimws(`Type of Turtle`))) %>%
+  mutate(`Type of Turtle` = recode(`Type of Turtle`,
+    "hawksbill turtle" = "hawksbill",
+    "green turtle" = "green",
+    "loggerhead turtle" = "loggerhead",
+    "leatherback turtle" = "leatherback",
+    "olive ridley" = "olive ridley",
+    "other" = "al rimani",
+    "unknown" = "unknown"))
+species_year$year_factor <- factor(species_year$year)
+species_trend_plot <- ggplot(species_year, 
+                            aes(x = year_factor, y = n, 
+                                group = `Type of Turtle`, 
+                                color = `Type of Turtle`)) +
+  geom_line(size = 0.5) +
+  geom_point(size = 2) +
+  labs(title = "Trend of Turtle Observations by Species Over Time",
+       x = "Year",
+       y = "Number of Turtles",
+       color = "Species") +
+  scale_color_manual(values = c(
+    "green" = "green",
+    "hawksbill" = "orange",
+    "loggerhead" = "blue",
+    "leatherback" = "brown",
+    "olive ridley" = "purple",
+    "unknown" = "gray",
+    "al rimani" = "black"
+  )) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggplotly(species_trend_plot)
+# Oman map
+location_freq <- data %>%
+  group_by(Wilayat, latitude, longitude) %>%
+  summarise(count = n(), .groups = "drop")
+pal <- colorNumeric(palette = "YlOrRd", domain = location_freq$count)
+leaflet(location_freq) %>%
+  addProviderTiles("CartoDB.Positron") %>%  
+  addCircleMarkers(
+    lng = ~longitude,
+    lat = ~latitude,
+    radius = ~sqrt(count) * 3,   
+    stroke = FALSE,
+    fillColor = ~pal(count),
+    fillOpacity = 0.85,
+    label = ~paste0("Wilayat: ", Wilayat),
+    popup = ~paste0(
+      "<b>Wilayat:</b> ", Wilayat,
+      "<br><b>Turtle Count:</b> ", count,
+      "<br><b>Latitude:</b> ", round(latitude, 3),
+      "<br><b>Longitude:</b> ", round(longitude, 3)
+    )
+  ) %>%
+  addLegend(
+    position = "bottomright",
+    pal = pal,
+    values = ~count,
+    title = "Number of Turtles",
+    opacity = 1
+  )
+# corresponding analysis
+#install.packages("FactoMineR")
+#install.packages("factoextra")
+library(FactoMineR)
+library(factoextra)
+table_species_decomp <- table(
+  dead_data$`Type of Turtle`,
+  dead_data$`Decomposition Level`
+)
+ca_result <- CA(table_species_decomp, graph = FALSE)
+fviz_ca_biplot(
+  ca_result,
+  repel = TRUE
+)
+# make sure were factors
+data_2018 <- data_2018 %>%
+  mutate(
+    `Mortality Status` = as.factor(`Mortality Status`),
+    `Type of Turtle` = as.factor(`Type of Turtle`),
+    Wilayat = as.factor(Wilayat),
+    `Body condition` = as.factor(`Body condition`)
+  )
+# Mortality Status × Wilayat
+table_wilayat_mortality <- table(data_2018$Wilayat,                                 data_2018$`Mortality Status`)
+chisq_wilayat_mortality <- chisq.test (table_wilayat_mortality)
+table_wilayat_mortality
+# Mortality Status × Type of Turtle
+table_species_mortality <- table(data_2018$`Type of Turtle`,
+                                 data_2018$`Mortality Status`)
+chisq_species_mortality <- chisq.test(table_species_mortality)
+table_species_mortality
+# Decomposition Level × Type of Turtle
+table_species_decomp <- table(dead_data$`Type of Turtle`,                        dead_data$`Decomposition Level`)
+chisq_species_decomp <- chisq.test(table_species_decomp)
+table_species_decomp
+# Body Condition × Mortality Status
+table_body_mortality <- table(data$`Body condition`,
+                              data$`Mortality Status`)
+chisq_body_mortality <- chisq.test(table_body_mortality)
+table_body_mortality
+# Fisher exact test
+fisher_species_mortality <- fisher.test(table_species_mortality)
+fisher_species_mortality
+fisher_wilayat_mortality <- fisher.test(table_wilayat_mortality)
+fisher_wilayat_mortality
+fisher_body_mortality <- fisher.test(table_body_mortality)
+fisher_body_mortality
+fisher_species_decomp <- fisher.test(
+  table_species_decomp,
+  simulate.p.value = TRUE,
+  B = 10000
+)
+fisher_species_decomp
+# Fit Logistic Regression models
+data_2018$Mortality_binary <- ifelse(
+  data_2018$`Mortality Status` == "Dead", 1, 0
+)
+# Fit Logistic Regression - model 
+glm_model <- glm(
+  Mortality_binary ~ year + `Type of Turtle`,
+  data = data_2018,
+  family = binomial
+)
+summary(glm_model)
+
+# Fit multinomial model 
+library(nnet)
+dead_data$`Decomposition Level` <- as.factor(dead_data$`Decomposition Level`)
+dead_data$`Type of Turtle` <- as.factor(dead_data$`Type of Turtle`)
+dead_data$year <- as.factor(dead_data$year)
+dead_data$`Decomposition Level` <- relevel(dead_data$`Decomposition Level`, ref = "Fresh")
+multi_model <- multinom(`Decomposition Level` ~ `Type of Turtle` + year,
+                        data = dead_data)
+summary(multi_model)
+
+```
